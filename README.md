@@ -86,3 +86,7 @@ Set `timeoutMs` between 100 and 60000 milliseconds (10 seconds by default) and p
 ### Single corridor detail
 
 `client.corridor(corridorId)` retrieves the actual enabled corridor record by UUID. Invalid identifiers fail before fetching; unknown, disabled or unavailable corridors raise HTTP errors. A database record is **not** evidence of active provider support, licensed payouts or a verified contract deployment.
+
+## Detailed developer guide
+
+[Read the implementation and integration guide](docs/DEVELOPER-GUIDE.md) for current API boundaries, usage, verification and security requirements.
