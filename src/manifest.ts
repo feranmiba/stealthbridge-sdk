@@ -57,7 +57,10 @@ export function parseDeploymentManifest(input:unknown):DeploymentManifest {
 export function getVerifiedContract(manifest:DeploymentManifest,name:string):string {
  if(manifest.status!=="deployed"||!manifest.verified)
    throw new ManifestError("Contract not independently verified as deployed");
- const contract=manifest.contractAddresses[name];
- if(!contract)throw new ManifestError("No verified contract for requested name");
- return contract;
+ if(!manifest.contractAddresses[name])
+   throw new ManifestError("No declared contract for requested name");
+ // A JSON flag or valid-looking StrKey does not verify code hash, WASM,
+ // network, or on-chain existence. Keep this intentionally unavailable
+ // until a trusted Stellar RPC attestation is implemented.
+ throw new ManifestError("On-chain contract attestation is required before resolving any address");
 }

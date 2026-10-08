@@ -91,3 +91,5 @@ The SDK now offers `scanCorridors({pageSize:25,maxPages:20,signal})`, an asynchr
 ### Source-level registry ABI inventory
 
 `contracts().public_interface` contains the read method names, argument shapes and explicitly separated administrator writes for both current Soroban registry sources. The authoritative snapshot lives at `stealthbridge-contracts/integrations/public-soroban-interface.v1.json`; the backend compares its mirrored copy in CI and serves it to SDK clients. The SDK validates the read names against the pinned source interface and rejects unknown read capabilities. This is a method inventory only: without a real deployed Contract ID and independent chain attestation, no Soroban invocation can run. No wallet seed or private proof is accepted here.
+
+**Strict address rule:** `getVerifiedContract()` intentionally refuses to resolve addresses from a manifest claim alone, even if `status=deployed` and `verified=true`. Real on-chain attestation of the contract ID, code hash, source version and Testnet passphrase must be implemented first. This avoids treating JSON metadata or syntactically valid-looking StrKeys as real deployed code.
