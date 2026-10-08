@@ -75,3 +75,7 @@ In particular, \`chain_finalized\` **cannot** advance directly to \`payout_compl
 ### Strict public response integrity
 
 Corridor responses now reject malformed UUIDs, same-country pairs, unsupported privacy rails, oversize/invalid asset identifiers, and malformed issuer strings. Transaction summaries require a genuine 64-character hash, positive ledger sequence, a latest-ledger not earlier than inclusion, numeric Unix close-time and recognized status. Network readings similarly reject invalid protocol/sequence and close-time fields. These checks prevent invalid upstream data from silently becoming trusted frontend state; they **cannot prove a payout provider, private transfer or stablecoin issuer is genuine**.
+
+## Service dependency readiness
+
+\`client.readiness()\` reads the backend's \`GET /ready\` route, and validates the relationship between \`status\`, \`stellar_rpc\`, \`database\`, and an explicitly **disabled payments** capability. A fully connected process can report \`ready\` for its observation dependencies while **payments remain disabled**. Absent/unavailable dependencies cause the backend's HTTP 503 and are not rewritten to success by the SDK.

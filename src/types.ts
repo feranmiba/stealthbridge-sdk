@@ -59,3 +59,11 @@ export interface LedgerCheckpoint {
   ledger_closed_at_unix:string;
   source:"stellar-rpc";
 }
+
+/** Service dependencies only; not a payment/issuer approval. */
+export interface Readiness {
+ status:"ready"|"degraded";
+ stellar_rpc:"connected"|"unavailable";
+ database:"connected"|"unavailable";
+ payments:"disabled";
+}

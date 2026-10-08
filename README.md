@@ -117,3 +117,7 @@ The backend can persist a monotonic **public Testnet ledger head** after indepen
 The SDK exports \`allowedSettlementTransitions\`, \`canTransitionSettlement(from,to)\`, \`assertSettlementTransition(from,to)\`, \`isSettlementState(value)\` and \`isTerminalSettlementState(state)\`. These mirror the backend's explicit **domain state machine**; they are for rendering and validating lifecycle information, not creating/approving/executing financial operations.
 
 In particular, \`chain_finalized\` **cannot** advance directly to \`payout_completed\`; external payout confirmation and reconciliation are distinct. Terminal state is not synonymous with successful payment (e.g. \`expired\` and \`rejected\` are terminal). Versions must remain aligned across backend/SDK; CI tests fail on invalid transitions. No client-side transition is proof of actual chain or payout evidence.
+
+## Service dependency readiness
+
+\`client.readiness()\` reads the backend's \`GET /ready\` route, and validates the relationship between \`status\`, \`stellar_rpc\`, \`database\`, and an explicitly **disabled payments** capability. A fully connected process can report \`ready\` for its observation dependencies while **payments remain disabled**. Absent/unavailable dependencies cause the backend's HTTP 503 and are not rewritten to success by the SDK.
