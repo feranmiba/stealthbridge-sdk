@@ -20,15 +20,19 @@ export function assertAsset(asset: AssetIdentity): AssetIdentity {
     throw new AmountError("Asset identifier must be validated and nonempty");
   if (!Number.isInteger(asset.decimals) || asset.decimals < 0 || asset.decimals > 38)
     throw new AmountError("Asset decimals must be an integer between 0 and 38");
+  if (asset.kind === "stellar-classic" && asset.decimals !== 7) throw new AmountError("Classic Stellar precision must be 7");
   return Object.freeze({...asset});
 }
 function sameAsset(a:AssetIdentity,b:AssetIdentity):boolean {
   return a.network===b.network && a.kind===b.kind &&
     a.identifier===b.identifier && a.decimals===b.decimals;
 }
-function units(value:bigint):bigint {
+const CLASSIC_MAX = (1n << 63n) - 1n;
+const SOROBAN_MAX = (1n << 127n) - 1n;
+function units(value:bigint, asset:AssetIdentity):bigint {
   if(value<0n)throw new AmountError("Negative transfer amounts are not supported");
   // Arbitrary high values are not implicitly legal for any Stellar token.
+  if(value > (asset.kind === "stellar-classic" ? CLASSIC_MAX : SOROBAN_MAX)) throw new AmountError("Amount exceeds on-chain integer range");
   return value;
 }
 /** Never accepts a number: callers must supply decimal strings or bigint units. */
@@ -38,13 +42,14 @@ export class AssetAmount {
   constructor(asset:AssetIdentity, minorUnits:bigint) {
     this.asset=assertAsset(asset);
     if(typeof minorUnits!=="bigint") throw new AmountError("Minor units must be bigint");
-    this.minorUnits=units(minorUnits);
+    this.minorUnits=units(minorUnits,this.asset);
     Object.freeze(this);
   }
   static parse(asset:AssetIdentity, input:string):AssetAmount {
     const verified=assertAsset(asset);
     if(typeof input!=="string" || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(input))
       throw new AmountError("Expected unsigned plain decimal string with no separators");
+    if(input.length>170) throw new AmountError("Decimal input too long");
     const [whole,fraction=""]=input.split(".");
     if(fraction.length>verified.decimals) throw new AmountError("Input exceeds asset precision");
     const base=10n**BigInt(verified.decimals);
@@ -65,7 +70,7 @@ export class AssetAmount {
   }
   subtract(other:AssetAmount):AssetAmount {
     if(!sameAsset(this.asset,other.asset))throw new AmountError("Asset identity mismatch");
-    return new AssetAmount(this.asset,units(this.minorUnits-other.minorUnits));
+    return new AssetAmount(this.asset,units(this.minorUnits-other.minorUnits,this.asset));
   }
   compare(other:AssetAmount): -1 | 0 | 1 {
     if(!sameAsset(this.asset,other.asset))throw new AmountError("Asset identity mismatch");
