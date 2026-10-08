@@ -41,3 +41,5 @@ Only schema version 1 and `network=testnet` are recognized. The current contract
 ### Read-only transport invariants
 
 Every SDK read has a bounded timeout, optional caller AbortSignal, maximum JSON response size, and runtime shape validation. The Testnet passphrase is verified in the client response, in addition to the backend RPC check. Unsupported data is rejected as an API protocol error, not converted into a payment success state. Cross-platform tests use native fetch and `AbortSignal.any` (Node.js 22+ / modern browsers).
+
+The backend additionally provides `GET /v1/corridors/{id}`, with 400 for malformed UUIDs, 404 for disabled/missing records, and 503 for unavailable PostgreSQL. The SDK `corridor(id)` mirrors these checks and never synthesizes missing asset metadata.

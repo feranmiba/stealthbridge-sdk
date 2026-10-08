@@ -82,3 +82,7 @@ Use `parseDeploymentManifest(input)` and `getVerifiedContract(manifest,name)` to
 The SDK now validates actual response schemas for network identity, corridors, capabilities, health and transaction observations before returning them. Responses that are malformed, oversized or incompatible with Stellar Testnet fail closed with `ApiError(502,path)`; no synthetic results are returned.
 
 Set `timeoutMs` between 100 and 60000 milliseconds (10 seconds by default) and pass `{signal:AbortSignal}` to any read. Requests use `AbortSignal.any()` for cancellation and timeout. **No money-moving method is exposed, and retries are not performed.** Upstream rate limits/5xx remain explicit errors requiring operator review.
+
+### Single corridor detail
+
+`client.corridor(corridorId)` retrieves the actual enabled corridor record by UUID. Invalid identifiers fail before fetching; unknown, disabled or unavailable corridors raise HTTP errors. A database record is **not** evidence of active provider support, licensed payouts or a verified contract deployment.

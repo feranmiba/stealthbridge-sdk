@@ -92,6 +92,12 @@ export class StealthBridgeClient {
   return this.read("/v1/corridors",(v):v is Corridor[]=>
    Array.isArray(v)&&v.length<=10000&&v.every(corridor),options);
  }
+ /** Inspect one enabled, operator-configured corridor from real database state. */
+ corridor(id:string,options?:RequestOptions):Promise<Corridor>{
+  if(!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id))
+    throw new TypeError("Corridor ID must be a valid UUID");
+  return this.read("/v1/corridors/"+id.toLowerCase(),corridor,options);
+ }
  /** Hash lookup proves inclusion only, never fiat payout or private-transfer success. */
  transaction(hash:string,options?:RequestOptions):Promise<TransactionObservation>{
   if(!/^[a-f0-9]{64}$/i.test(hash))
