@@ -67,6 +67,21 @@ function observation(value:unknown):value is TransactionObservation {
   typeof value.closed_at_unix==="string"&&/^[0-9]{1,20}$/.test(value.closed_at_unix)&&
   value.source==="stellar-rpc";
 }
+
+/** Narrow the untrusted backend payload before ordering/cursor checks. */
+function corridorPageValid(value:unknown,limit:number,after?:string):value is CorridorPage{
+ if(!object(value)||!Array.isArray(value.items)||value.items.length>limit ||
+    !value.items.every(corridor))return false;
+ const items:Corridor[]=value.items;
+ const cursor=value.next_cursor;
+ if(cursor!==null&&(typeof cursor!=="string"||
+   !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(cursor)))return false;
+ if(cursor!==null&&(items.length===0 ||
+   cursor.toLowerCase()!==items[items.length-1].id.toLowerCase()))return false;
+ return items.every((item,index)=> (index===0 ||
+   items[index-1].id.toLowerCase()<item.id.toLowerCase()) &&
+   (after===undefined||item.id.toLowerCase()>after.toLowerCase()));
+}
 const MAX_JSON_BYTES=65536;
 export class StealthBridgeClient {
  private readonly base:string;
@@ -179,15 +194,8 @@ export class StealthBridgeClient {
    throw new TypeError("Cursor must be a UUID returned by the corridor API");
   const params=new URLSearchParams({limit:String(limit)});
   if(after)params.set("after",after.toLowerCase());
-  return this.read("/v1/corridors/page?"+params.toString(),(v):v is CorridorPage=>
-   object(v)&&Array.isArray(v.items)&&v.items.length<=limit&&v.items.every(corridor)&&
-   (v.next_cursor===null||(typeof v.next_cursor==="string"&&
-    /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(v.next_cursor))) &&
-   (v.next_cursor===null||(v.items.length>0 &&
-      v.next_cursor.toLowerCase()===v.items[v.items.length-1].id.toLowerCase())) &&
-   v.items.every((item,index)=>index===0 ||
-      v.items[index-1].id.toLowerCase()<item.id.toLowerCase()) &&
-   (!after || v.items.every(item=>item.id.toLowerCase()>after.toLowerCase())),options);
+  return this.read("/v1/corridors/page?"+params.toString(),
+   (value):value is CorridorPage=>corridorPageValid(value,limit,after),options);
  }
 
  /**
