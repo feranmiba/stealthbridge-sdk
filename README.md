@@ -107,3 +107,7 @@ if(first.next_cursor){
 \`\`\`
 
 This method is separate from the backwards-compatible \`corridors()\` listing; it never creates quote, payment or partner relationships.
+
+## Opt-in ledger observer support
+
+The backend can persist a monotonic **public Testnet ledger head** after independently checking RPC network identity. With an operator-managed database and explicit observer activation, \`client.observerHead()\` reads that last stored checkpoint. An absent checkpoint returns HTTP 404, unavailable storage 503, and malformed schema a rejected protocol response. This **does not prove a payment occurred** and does not contain transaction XDR, a settlement receipt, account data or a fiat payout. The field may be stale if the observer is stopped.

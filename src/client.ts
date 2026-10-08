@@ -1,4 +1,4 @@
-import type {Capabilities,Corridor,Network,NetworkStatus,TransactionObservation,CorridorPage} from "./types.js";
+import type {Capabilities,Corridor,Network,NetworkStatus,TransactionObservation,CorridorPage,LedgerCheckpoint} from "./types.js";
 
 export interface ClientConfig {
  apiBaseUrl:string;
@@ -24,6 +24,13 @@ function networkStatus(value:unknown):value is NetworkStatus{
   Number.isSafeInteger(value.protocol_version) && Number.isSafeInteger(value.ledger_sequence) &&
   typeof value.ledger_hash==="string" && /^[0-9a-f]{64}$/i.test(value.ledger_hash) &&
   typeof value.ledger_closed_at_unix==="string";
+}
+function ledgerCheckpoint(value:unknown):value is LedgerCheckpoint {
+ return object(value)&&Number.isSafeInteger(value.ledger_sequence)&&
+  typeof value.ledger_sequence==="number"&&value.ledger_sequence>0&&
+  typeof value.ledger_hash==="string"&&/^[0-9a-f]{64}$/i.test(value.ledger_hash)&&
+  typeof value.ledger_closed_at_unix==="string"&&/^[0-9]{1,20}$/.test(value.ledger_closed_at_unix)&&
+  value.source==="stellar-rpc";
 }
 function capabilities(value:unknown):value is Capabilities{
  return object(value) && ["payments_enabled","confidential_token_verified",
@@ -122,6 +129,10 @@ export class StealthBridgeClient {
    const timer=setTimeout(()=>{cleanup();resolve();},ms);
    signal.addEventListener("abort",abort,{once:true});
   });
+ }
+ /** Last persisted opt-in observer head. 404 means no checkpoint, not a fictional ledger. */
+ observerHead(options?:RequestOptions):Promise<LedgerCheckpoint>{
+  return this.read("/v1/observer",ledgerCheckpoint,options);
  }
  health(options?:RequestOptions):Promise<{service:string;status:string}>{
   return this.read("/health",(v):v is {service:string;status:string}=>
