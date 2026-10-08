@@ -18,3 +18,13 @@ test("rejects invalid IDs even in explicitly verified claims",()=>{
  assert.throws(()=>parseDeploymentManifest({...noDeployment,status:"deployed",verified:true,
  contractAddresses:{registry:"not_an_address"},txHashes:["f".repeat(64)]}),ManifestError);
 });
+
+test("a claimed deployment can never yield a contract ID without independent attestation",()=>{
+ const claimed={
+  schemaVersion:1,network:"testnet",status:"deployed",verified:true,
+  contractAddresses:{"corridor-registry":"C"+"A".repeat(55)},assetIssuers:{},
+  txHashes:["a".repeat(64)]
+ };
+ const parsed=parseDeploymentManifest(claimed);
+ assert.throws(()=>getVerifiedContract(parsed,"corridor-registry"),/attestation/);
+});

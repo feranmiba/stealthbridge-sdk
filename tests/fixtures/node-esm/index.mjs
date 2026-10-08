@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ApiError, StealthBridgeClient, AssetAmount, AmountError, assertAsset, ManifestError, parseDeploymentManifest, getVerifiedContract } from "@stealthbridge/sdk";
+import { ApiError, StealthBridgeClient, AssetAmount, AmountError, assertAsset, ManifestError, parseDeploymentManifest, getVerifiedContract, canTransitionSettlement, assertSettlementTransition, isSettlementState, isTerminalSettlementState, allowedSettlementTransitions, SettlementTransitionError } from "@stealthbridge/sdk";
 
 const hash = "0123456789abcdef".repeat(4);
 const responses = {
@@ -56,9 +56,15 @@ assert.deepEqual(Object.keys(await import("@stealthbridge/sdk")).sort(), [
   "ApiError",
   "AssetAmount",
   "ManifestError",
+  "SettlementTransitionError",
   "StealthBridgeClient",
+  "allowedSettlementTransitions",
   "assertAsset",
+  "assertSettlementTransition",
+  "canTransitionSettlement",
   "getVerifiedContract",
+  "isSettlementState",
+  "isTerminalSettlementState",
   "parseDeploymentManifest"
 ]);
 

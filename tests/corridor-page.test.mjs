@@ -36,3 +36,37 @@ test("malformed page results cannot bypass runtime schema guard",async()=>{
  fetchImpl:async()=>new Response(JSON.stringify({items:[fixture(cursor)],next_cursor:"bad"}))});
  await assert.rejects(api.corridorsPage(),e=>e instanceof ApiError&&e.status===502);
 });
+
+test("scanCorridors iterates only actual keyset data with finite page caps",async()=>{
+ const seen=[];
+ const api=new StealthBridgeClient({network:"testnet",apiBaseUrl:"https://api.example",
+  fetchImpl:async url=>{
+   seen.push(String(url));
+   return new Response(JSON.stringify(seen.length===1?
+     {items:[fixture(cursor)],next_cursor:cursor}:
+     {items:[fixture(second)],next_cursor:null}));
+  }});
+ const ids=[];
+ for await(const c of api.scanCorridors({pageSize:1,maxPages:3}))ids.push(c.id);
+ assert.deepEqual(ids,[cursor,second]);
+ assert.equal(seen.length,2);
+});
+test("scanCorridors cannot silently scan unlimited pages",async()=>{
+ let calls=0;
+ const api=new StealthBridgeClient({network:"testnet",apiBaseUrl:"https://api.example",
+ fetchImpl:async ()=>{
+   calls++;
+   const id=(calls.toString(16).padStart(8,"0"))+"-1111-1111-1111-111111111111";
+   return new Response(JSON.stringify({items:[fixture(id)],next_cursor:id}));
+ }});
+ const items=[];
+ for await(const c of api.scanCorridors({pageSize:1,maxPages:2}))items.push(c);
+ assert.equal(items.length,2);
+ assert.equal(calls,2);
+ await assert.rejects(api.scanCorridors({maxPages:10000}).next(),RangeError);
+});
+test("rejects cursor mismatches instead of reusing a forged page",async()=>{
+ const api=new StealthBridgeClient({network:"testnet",apiBaseUrl:"https://api.example",
+  fetchImpl:async()=>new Response(JSON.stringify({items:[fixture(cursor)],next_cursor:second}))});
+ await assert.rejects(api.corridorsPage(),e=>e instanceof ApiError&&e.status===502);
+});

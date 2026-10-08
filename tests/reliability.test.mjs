@@ -80,3 +80,18 @@ test("abort during retry delay stops further network requests",async()=>{
  await assert.rejects(pending,/cancelled by user/);
  assert.equal(attempts,1);
 });
+
+test("rejects malformed public corridor identity instead of returning unsafe records",async()=>{
+ const api=client(async()=>new Response(JSON.stringify([{
+  id:"../../private",origin_country:"US",destination_country:"US",
+  asset_code:"CORRUPT",asset_issuer:null,privacy_rail:"private-payments"
+ }])));
+ await assert.rejects(api.corridors(),e=>e instanceof ApiError&&e.status===502);
+});
+test("rejects impossible transaction ledger order and malformed timestamp",async()=>{
+ const api=client(async()=>new Response(JSON.stringify({
+  hash:HASH,status:"SUCCESS",ledger:100,latest_ledger:90,
+  closed_at_unix:"now",source:"stellar-rpc"
+ })));
+ await assert.rejects(api.transaction(HASH),e=>e instanceof ApiError&&e.status===502);
+});

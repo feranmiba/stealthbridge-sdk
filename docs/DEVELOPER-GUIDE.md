@@ -76,3 +76,31 @@ This method is separate from the backwards-compatible \`corridors()\` listing; i
 ## Opt-in ledger observer support
 
 The backend can persist a monotonic **public Testnet ledger head** after independently checking RPC network identity. With an operator-managed database and explicit observer activation, \`client.observerHead()\` reads that last stored checkpoint. An absent checkpoint returns HTTP 404, unavailable storage 503, and malformed schema a rejected protocol response. This **does not prove a payment occurred** and does not contain transaction XDR, a settlement receipt, account data or a fiat payout. The field may be stale if the observer is stopped.
+
+## Pure settlement lifecycle interpretation
+
+The SDK exports \`allowedSettlementTransitions\`, \`canTransitionSettlement(from,to)\`, \`assertSettlementTransition(from,to)\`, \`isSettlementState(value)\` and \`isTerminalSettlementState(state)\`. These mirror the backend's explicit **domain state machine**; they are for rendering and validating lifecycle information, not creating/approving/executing financial operations.
+
+In particular, \`chain_finalized\` **cannot** advance directly to \`payout_completed\`; external payout confirmation and reconciliation are distinct. Terminal state is not synonymous with successful payment (e.g. \`expired\` and \`rejected\` are terminal). Versions must remain aligned across backend/SDK; CI tests fail on invalid transitions. No client-side transition is proof of actual chain or payout evidence.
+
+### Strict public response integrity
+
+Corridor responses now reject malformed UUIDs, same-country pairs, unsupported privacy rails, oversize/invalid asset identifiers, and malformed issuer strings. Transaction summaries require a genuine 64-character hash, positive ledger sequence, a latest-ledger not earlier than inclusion, numeric Unix close-time and recognized status. Network readings similarly reject invalid protocol/sequence and close-time fields. These checks prevent invalid upstream data from silently becoming trusted frontend state; they **cannot prove a payout provider, private transfer or stablecoin issuer is genuine**.
+
+## Service dependency readiness
+
+\`client.readiness()\` reads the backend's \`GET /ready\` route, and validates the relationship between \`status\`, \`stellar_rpc\`, \`database\`, and an explicitly **disabled payments** capability. A fully connected process can report \`ready\` for its observation dependencies while **payments remain disabled**. Absent/unavailable dependencies cause the backend's HTTP 503 and are not rewritten to success by the SDK.
+
+## Bounded streaming corridor scans
+
+The SDK now offers `scanCorridors({pageSize:25,maxPages:20,signal})`, an asynchronous iterator over **real** configured records. It limits the number of HTTP requests, supports caller cancellation and bounded GET retry settings, checks UUID cursor progress, ordering and duplicate records, and terminates when the backend returns a null cursor. The default cap is at most 20 requests, not an exhaustive scan guarantee; use `corridorsPage` with explicit cursors for larger catalogs. No data is fabricated, and no transfer or payout operation is performed.
+
+## Canonical cross-repository contract discovery
+
+`client.contracts()` retrieves `GET /v1/contracts` from the Rust backend. The backend embeds the **real**, currently `not-deployed` Testnet manifest from the Soroban contracts repository. An automated backend CI check compares its snapshot with the canonical contracts repo so source drift fails early. The SDK validates schema, network, record emptiness and explicit `on_chain_verified=false` / `payment_execution_enabled=false`. It rejects any premature deployed/verified claim; no contract ID or payment capability is conjured. After an independently verified Soroban deployment, this interface must be extended with actual chain attestation before enabling contract operations. The SDK does not sign or simulate fund movement.
+
+### Source-level registry ABI inventory
+
+`contracts().public_interface` contains the read method names, argument shapes and explicitly separated administrator writes for both current Soroban registry sources. The authoritative snapshot lives at `stealthbridge-contracts/integrations/public-soroban-interface.v1.json`; the backend compares its mirrored copy in CI and serves it to SDK clients. The SDK validates the read names against the pinned source interface and rejects unknown read capabilities. This is a method inventory only: without a real deployed Contract ID and independent chain attestation, no Soroban invocation can run. No wallet seed or private proof is accepted here.
+
+**Strict address rule:** `getVerifiedContract()` intentionally refuses to resolve addresses from a manifest claim alone, even if `status=deployed` and `verified=true`. Real on-chain attestation of the contract ID, code hash, source version and Testnet passphrase must be implemented first. This avoids treating JSON metadata or syntactically valid-looking StrKeys as real deployed code.

@@ -59,3 +59,34 @@ export interface LedgerCheckpoint {
   ledger_closed_at_unix:string;
   source:"stellar-rpc";
 }
+
+/** Service dependencies only; not a payment/issuer approval. */
+export interface Readiness {
+ status:"ready"|"degraded";
+ stellar_rpc:"connected"|"unavailable";
+ database:"connected"|"unavailable";
+ payments:"disabled";
+}
+
+/** Deployed contract discovery is intentionally denied until independent RPC verification. */
+export interface ContractDiscovery {
+ network:"testnet";
+ source:"stealthbridge-contracts/deployments/testnet/manifest.json";
+ manifest:import("./manifest.js").DeploymentManifest;
+ public_interface:PublicSorobanInterface;
+ on_chain_verified:false;
+ payment_execution_enabled:false;
+}
+
+/** Source-level Soroban reads; not a wallet/signed transaction adapter. */
+export interface PublicSorobanInterface {
+ schemaVersion:1;
+ network:"testnet";
+ status:"source-interface-only";
+ disclaimer:string;
+ contracts:Record<string,{
+  source:string;
+  reads:Record<string,{args:string[];returns:string}>;
+  writes:string[];
+ }>;
+}

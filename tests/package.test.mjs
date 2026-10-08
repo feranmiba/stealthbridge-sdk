@@ -21,6 +21,8 @@ const expectedPackageFiles = [
   "dist/index.js",
   "dist/manifest.d.ts",
   "dist/manifest.js",
+  "dist/settlement.d.ts",
+  "dist/settlement.js",
   "dist/types.d.ts",
   "dist/types.js",
   "package.json"
@@ -28,7 +30,7 @@ const expectedPackageFiles = [
 const budgets = {
   packedBytes: 28_000,
   unpackedBytes: 68_000,
-  fullBrowserBytes: 9_000,
+  fullBrowserBytes: 10_500,
   treeShakenBrowserBytes: 1_600,
   nextClientSdkChunksBytes: 25_000
 };
