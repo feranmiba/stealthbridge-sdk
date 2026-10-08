@@ -21,9 +21,10 @@ function networkStatus(value:unknown):value is NetworkStatus{
  return object(value) && value.network==="testnet" &&
   value.passphrase==="Test SDF Network ; September 2015" &&
   value.source==="stellar-rpc" &&
-  Number.isSafeInteger(value.protocol_version) && Number.isSafeInteger(value.ledger_sequence) &&
+  Number.isSafeInteger(value.protocol_version) && Number(value.protocol_version)>0 &&
+  Number.isSafeInteger(value.ledger_sequence) && Number(value.ledger_sequence)>0 &&
   typeof value.ledger_hash==="string" && /^[0-9a-f]{64}$/i.test(value.ledger_hash) &&
-  typeof value.ledger_closed_at_unix==="string";
+  typeof value.ledger_closed_at_unix==="string" && /^[0-9]{1,20}$/.test(value.ledger_closed_at_unix);
 }
 function ledgerCheckpoint(value:unknown):value is LedgerCheckpoint {
  return object(value)&&Number.isSafeInteger(value.ledger_sequence)&&
@@ -38,17 +39,22 @@ function capabilities(value:unknown):value is Capabilities{
 }
 function corridor(value:unknown):value is Corridor {
  return object(value)&&typeof value.id==="string"&&
+  /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(value.id)&&
   typeof value.origin_country==="string"&&/^[A-Z]{2}$/.test(value.origin_country)&&
   typeof value.destination_country==="string"&&/^[A-Z]{2}$/.test(value.destination_country)&&
-  typeof value.asset_code==="string"&&
-  (value.asset_issuer===null||typeof value.asset_issuer==="string")&&
+  value.origin_country!==value.destination_country&&
+  typeof value.asset_code==="string"&&/^[a-zA-Z0-9_:-]{1,64}$/.test(value.asset_code)&&
+  (value.asset_issuer===null||(typeof value.asset_issuer==="string"&&
+   value.asset_issuer.length>0&&value.asset_issuer.length<=128))&&
   ["confidential-token","private-payments"].includes(String(value.privacy_rail));
 }
 function observation(value:unknown):value is TransactionObservation {
  return object(value)&&typeof value.hash==="string"&&/^[a-f0-9]{64}$/i.test(value.hash)&&
   ["SUCCESS","FAILED"].includes(String(value.status)) &&
-  Number.isSafeInteger(value.ledger)&&Number.isSafeInteger(value.latest_ledger)&&
-  typeof value.closed_at_unix==="string"&&value.source==="stellar-rpc";
+  Number.isSafeInteger(value.ledger)&&typeof value.ledger==="number"&&value.ledger>0&&
+  Number.isSafeInteger(value.latest_ledger)&&typeof value.latest_ledger==="number"&&value.latest_ledger>=value.ledger&&
+  typeof value.closed_at_unix==="string"&&/^[0-9]{1,20}$/.test(value.closed_at_unix)&&
+  value.source==="stellar-rpc";
 }
 const MAX_JSON_BYTES=65536;
 export class StealthBridgeClient {

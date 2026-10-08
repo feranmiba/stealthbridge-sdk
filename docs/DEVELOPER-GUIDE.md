@@ -71,3 +71,7 @@ The backend can persist a monotonic **public Testnet ledger head** after indepen
 The SDK exports \`allowedSettlementTransitions\`, \`canTransitionSettlement(from,to)\`, \`assertSettlementTransition(from,to)\`, \`isSettlementState(value)\` and \`isTerminalSettlementState(state)\`. These mirror the backend's explicit **domain state machine**; they are for rendering and validating lifecycle information, not creating/approving/executing financial operations.
 
 In particular, \`chain_finalized\` **cannot** advance directly to \`payout_completed\`; external payout confirmation and reconciliation are distinct. Terminal state is not synonymous with successful payment (e.g. \`expired\` and \`rejected\` are terminal). Versions must remain aligned across backend/SDK; CI tests fail on invalid transitions. No client-side transition is proof of actual chain or payout evidence.
+
+### Strict public response integrity
+
+Corridor responses now reject malformed UUIDs, same-country pairs, unsupported privacy rails, oversize/invalid asset identifiers, and malformed issuer strings. Transaction summaries require a genuine 64-character hash, positive ledger sequence, a latest-ledger not earlier than inclusion, numeric Unix close-time and recognized status. Network readings similarly reject invalid protocol/sequence and close-time fields. These checks prevent invalid upstream data from silently becoming trusted frontend state; they **cannot prove a payout provider, private transfer or stablecoin issuer is genuine**.
