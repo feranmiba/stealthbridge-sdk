@@ -8,7 +8,7 @@ test("corridor detail uses an actual, strictly formatted ID",async()=>{
   fetchImpl:async url=>{
    urls.push(url);
    return new Response(JSON.stringify({id,origin_country:"NG",destination_country:"KE",
-    asset_code:"TEST_ASSET",asset_issuer:null,privacy_rail:"confidential-token"}));
+    asset_code:"TEST_ASSET",asset_issuer:null,privacy_rail:"confidential-token"}),{headers:{"content-type":"application/json"}});
   }});
  const result=await client.corridor(id);
  assert.equal(result.id,id);

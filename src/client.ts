@@ -6,8 +6,16 @@ export interface ClientConfig {
  fetchImpl?:typeof fetch;
  /** Timeout for read-only API calls; defaults to 10s. */
  timeoutMs?:number;
+ /** Maximum retry attempts for GET requests; defaults to 0 (no retries). */
+ maxRetries?:number;
+ /** Initial retry backoff in milliseconds; defaults to 100ms. */
+ retryBackoffMs?:number;
 }
-export interface RequestOptions {signal?:AbortSignal;}
+export interface RequestOptions {
+ signal?:AbortSignal;
+ maxRetries?:number;
+ retryBackoffMs?:number;
+}
 export class ApiError extends Error {
  constructor(public readonly status:number,public readonly path:string) {
   super("StealthBridge API returned HTTP "+status+" for "+path);this.name="ApiError";
@@ -47,6 +55,9 @@ export class StealthBridgeClient {
  private readonly base:string;
  private readonly transport:typeof fetch;
  private readonly timeoutMs:number;
+ private readonly maxRetries:number;
+ private readonly retryBackoffMs:number;
+
  constructor(config:ClientConfig) {
   if(config.network!=="testnet")throw new Error("Only Stellar testnet is supported");
   const url=new URL(config.apiBaseUrl);
@@ -61,23 +72,106 @@ export class StealthBridgeClient {
   if(!Number.isSafeInteger(timeout)||timeout<100||timeout>60000)
    throw new Error("timeoutMs must be a whole number between 100 and 60000");
   this.timeoutMs=timeout;
+
+  const maxRetries=config.maxRetries??0;
+  if(!Number.isSafeInteger(maxRetries)||maxRetries<0||maxRetries>5)
+   throw new Error("maxRetries must be a whole number between 0 and 5");
+  this.maxRetries=maxRetries;
+
+  const retryBackoffMs=config.retryBackoffMs??100;
+  if(!Number.isSafeInteger(retryBackoffMs)||retryBackoffMs<0||retryBackoffMs>5000)
+   throw new Error("retryBackoffMs must be a whole number between 0 and 5000");
+  this.retryBackoffMs=retryBackoffMs;
  }
- private async read<T>(path:string,guard:(value:unknown)=>value is T,options:RequestOptions={}):Promise<T>{
-  const timeout=AbortSignal.timeout(this.timeoutMs);
-  const signal=options.signal?AbortSignal.any([options.signal,timeout]):timeout;
-  const response=await this.transport(this.base+path,{
-   method:"GET",headers:{accept:"application/json"},cache:"no-store",signal,
+
+ private sleep(ms:number,signal?:AbortSignal):Promise<void>{
+  if(signal?.aborted)return Promise.reject(signal.reason);
+  if(ms<=0)return Promise.resolve();
+  return new Promise<void>((resolve,reject)=>{
+   const timer=setTimeout(()=>{
+    signal?.removeEventListener("abort",onAbort);
+    resolve();
+   },ms);
+   const onAbort=()=>{
+    clearTimeout(timer);
+    reject(signal?.reason);
+   };
+   signal?.addEventListener("abort",onAbort,{once:true});
   });
-  if(!response.ok)throw new ApiError(response.status,path);
-  const declaredLength=Number(response.headers.get("content-length"));
-  if(declaredLength>MAX_JSON_BYTES)throw new ApiError(502,path);
-  const raw=await response.text();
-  if(raw.length>MAX_JSON_BYTES)throw new ApiError(502,path);
-  let parsed:unknown;
-  try{parsed=JSON.parse(raw);}catch{throw new ApiError(502,path);}
-  if(!guard(parsed))throw new ApiError(502,path);
-  return parsed;
  }
+
+ private validateRequestOptions(options:RequestOptions):{maxRetries:number;retryBackoffMs:number}{
+  const maxRetries=options.maxRetries??this.maxRetries;
+  if(!Number.isSafeInteger(maxRetries)||maxRetries<0||maxRetries>5)
+   throw new Error("maxRetries must be a whole number between 0 and 5");
+  const retryBackoffMs=options.retryBackoffMs??this.retryBackoffMs;
+  if(!Number.isSafeInteger(retryBackoffMs)||retryBackoffMs<0||retryBackoffMs>5000)
+   throw new Error("retryBackoffMs must be a whole number between 0 and 5000");
+  return {maxRetries,retryBackoffMs};
+ }
+
+ private async read<T>(path:string,guard:(value:unknown)=>value is T,options:RequestOptions={}):Promise<T>{
+  const {maxRetries,retryBackoffMs}=this.validateRequestOptions(options);
+  let lastError:unknown;
+
+  for(let attempt=0;attempt<=maxRetries;attempt++){
+   if(options.signal?.aborted)throw options.signal.reason;
+
+   const attemptTimeout=AbortSignal.timeout(this.timeoutMs);
+   const signal=options.signal?AbortSignal.any([options.signal,attemptTimeout]):attemptTimeout;
+
+   try{
+    const response=await this.transport(this.base+path,{
+     method:"GET",headers:{accept:"application/json"},cache:"no-store",signal,
+    });
+
+    if(!response.ok){
+     const status=response.status;
+     const isRetryable=[429,502,503,504].includes(status);
+     if(isRetryable && attempt<maxRetries && !options.signal?.aborted){
+      await this.sleep(retryBackoffMs * Math.pow(2,attempt),options.signal);
+      continue;
+     }
+     throw new ApiError(status,path);
+    }
+
+    const contentType=response.headers.get("content-type");
+    if(!contentType||!contentType.toLowerCase().includes("application/json")){
+     throw new ApiError(502,path);
+    }
+
+    const declaredLength=Number(response.headers.get("content-length"));
+    if(declaredLength>MAX_JSON_BYTES)throw new ApiError(502,path);
+
+    const raw=await response.text();
+    if(raw.length>MAX_JSON_BYTES)throw new ApiError(502,path);
+
+    let parsed:unknown;
+    try{parsed=JSON.parse(raw);}catch{throw new ApiError(502,path);}
+
+    if(!guard(parsed))throw new ApiError(502,path);
+
+    return parsed;
+   }catch(err){
+    lastError=err;
+    if(options.signal?.aborted)throw options.signal.reason;
+    if(err instanceof ApiError){
+     if(err.status===502 && attempt<maxRetries && !options.signal?.aborted){
+      await this.sleep(retryBackoffMs * Math.pow(2,attempt),options.signal);
+      continue;
+     }
+     throw err;
+    }
+    if(attempt<maxRetries && !options.signal?.aborted){
+     await this.sleep(retryBackoffMs * Math.pow(2,attempt),options.signal);
+     continue;
+    }
+    throw err;
+   }
+  }
+  throw lastError;
+ }
+
  health(options?:RequestOptions):Promise<{service:string;status:string}>{
   return this.read("/health",(v):v is {service:string;status:string}=>
    object(v)&&typeof v.service==="string"&&typeof v.status==="string",options);
@@ -92,17 +186,14 @@ export class StealthBridgeClient {
   return this.read("/v1/corridors",(v):v is Corridor[]=>
    Array.isArray(v)&&v.length<=10000&&v.every(corridor),options);
  }
- /** Inspect one enabled, operator-configured corridor from real database state. */
  corridor(id:string,options?:RequestOptions):Promise<Corridor>{
   if(!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id))
     throw new TypeError("Corridor ID must be a valid UUID");
   return this.read("/v1/corridors/"+id.toLowerCase(),corridor,options);
  }
- /** Hash lookup proves inclusion only, never fiat payout or private-transfer success. */
  transaction(hash:string,options?:RequestOptions):Promise<TransactionObservation>{
   if(!/^[a-f0-9]{64}$/i.test(hash))
     throw new TypeError("Transaction hash must be exactly 64 hexadecimal characters");
   return this.read("/v1/transactions/"+hash.toLowerCase(),observation,options);
  }
- /** No signing, quoting, settlement or wallet-key functions in this client. */
 }

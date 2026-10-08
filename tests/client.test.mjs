@@ -13,7 +13,7 @@ test("reads only a status projection for supplied transaction hash", async () =>
     fetchImpl:async (url,options)=>{
       calls.push([url,options.method]);
       return new Response(JSON.stringify({hash:HASH,status:"SUCCESS",ledger:123,latest_ledger:124,
-        closed_at_unix:"1760000000",source:"stellar-rpc"}),{status:200});
+        closed_at_unix:"1760000000",source:"stellar-rpc"}),{status:200,headers:{"content-type":"application/json"}});
     }});
   const result=await api.transaction(HASH.toUpperCase());
   assert.equal(result.status,"SUCCESS");

@@ -1,7 +1,7 @@
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, webcrypto } from "node:crypto";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,8 +82,17 @@ async function installNextFixture() {
   const destination = path.join(workspace, "next-app");
   await cp(path.join(fixtures, "next-app"), destination, { recursive: true });
   const vendor = path.join(destination, "vendor");
-  await mkdir(vendor);
+  await mkdir(vendor, { recursive: true });
   await cp(tarball, path.join(vendor, "stealthbridge-sdk.tgz"));
+  const lockPath = path.join(destination, "package-lock.json");
+  const lock = JSON.parse(await readFile(lockPath, "utf8"));
+  if (lock.packages && lock.packages["node_modules/@stealthbridge/sdk"]) {
+    lock.packages["node_modules/@stealthbridge/sdk"].integrity = packed.integrity;
+  }
+  if (lock.dependencies && lock.dependencies["@stealthbridge/sdk"]) {
+    lock.dependencies["@stealthbridge/sdk"].integrity = packed.integrity;
+  }
+  await writeFile(lockPath, JSON.stringify(lock, null, 2));
   const startedAt = performance.now();
   run("npm", ["ci", "--no-audit", "--no-fund"], destination);
   nextInstallMilliseconds = Math.round(performance.now() - startedAt);

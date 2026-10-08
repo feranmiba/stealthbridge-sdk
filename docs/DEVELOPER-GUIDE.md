@@ -10,15 +10,26 @@ const client = new StealthBridgeClient({
   network: "testnet",
   apiBaseUrl: serverUrlFromYourDeployment,
   timeoutMs: 10000,
+  maxRetries: 2, // opt-in GET retries (default 0)
+  retryBackoffMs: 100, // initial backoff delay
 });
 const state = await client.network();
-const corridors = await client.corridors();
+const corridors = await client.corridors({ maxRetries: 1 });
 if(corridors.length) {
   const verifiedConfiguration = await client.corridor(corridors[0].id);
 }
 ```
 
-The read-only client rejects remote plaintext HTTP, URLs with embedded credentials, non-Testnet configuration, invalid IDs/hashes, malformed or oversized response bodies, and incompatible response schemas. Requests accept optional AbortSignals and have bounded timeouts. Non-2xx returns `ApiError` with numeric status.
+The read-only client rejects remote plaintext HTTP, URLs with embedded credentials, non-Testnet configuration, invalid IDs/hashes, malformed or oversized response bodies (> 64 KB), wrong response content-types (non-JSON), and incompatible response schemas. Requests accept optional per-request `AbortSignal` and have bounded timeouts (`timeoutMs`).
+
+### Error taxonomy and retryability
+- **400 (Bad Request)**: Invalid parameters or UUID/hash format. Non-retryable; throws `ApiError(400)`.
+- **404 (Not Found)**: Unknown transaction hash or disabled corridor. Non-retryable; throws `ApiError(404)`. Never synthesizes fake state.
+- **429 (Too Many Requests)**: Rate limiting. Retryable up to `maxRetries` with exponential backoff (`retryBackoffMs * 2^attempt`). Throws `ApiError(429)` if retries are exhausted.
+- **502 (Bad Gateway)**: Malformed/oversized payload, invalid Content-Type, failed shape validation, or wrong Testnet passphrase. Retryable up to `maxRetries`. Throws `ApiError(502)` if retries are exhausted.
+- **503 (Service Unavailable)**: Database or upstream service down. Retryable up to `maxRetries` with exponential backoff. Throws `ApiError(503)` if retries are exhausted.
+
+Retries are opt-in, bounded (0–5 attempts), apply strictly to read-only GET requests, and honor caller `AbortSignal` cancellations immediately without fabricating any pending or successful payment states. No implicit retries exist for future signing or settlement operations.
 
 ## 2. Exact-value amount arithmetic
 

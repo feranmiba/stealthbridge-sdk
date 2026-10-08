@@ -39,7 +39,7 @@ const client = new StealthBridgeClient({
     requested.push([path, options.method]);
     const body = responses[path];
     return body
-      ? new Response(JSON.stringify(body), { status: 200 })
+      ? new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
       : new Response("", { status: 404 });
   }
 });

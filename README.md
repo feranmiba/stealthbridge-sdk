@@ -79,9 +79,9 @@ Use `parseDeploymentManifest(input)` and `getVerifiedContract(manifest,name)` to
 
 ## Resilient read-only client
 
-The SDK now validates actual response schemas for network identity, corridors, capabilities, health and transaction observations before returning them. Responses that are malformed, oversized or incompatible with Stellar Testnet fail closed with `ApiError(502,path)`; no synthetic results are returned.
+The SDK validates actual response schemas for network identity, corridors, capabilities, health and transaction observations before returning them. Responses that are malformed, oversized (> 64 KB), missing JSON Content-Type headers, or incompatible with Stellar Testnet fail closed with `ApiError(502,path)`; no synthetic results are returned.
 
-Set `timeoutMs` between 100 and 60000 milliseconds (10 seconds by default) and pass `{signal:AbortSignal}` to any read. Requests use `AbortSignal.any()` for cancellation and timeout. **No money-moving method is exposed, and retries are not performed.** Upstream rate limits/5xx remain explicit errors requiring operator review.
+Set `timeoutMs` between 100 and 60000 milliseconds (10 seconds by default) and pass `{signal:AbortSignal}` to any read. Requests use `AbortSignal.any()` for cancellation and timeout. Opt-in bounded retries (`maxRetries` up to 5, default 0) with exponential backoff (`retryBackoffMs`, default 100ms) can be configured globally or per-request for GET reads encountering 429, 502, 503, 504, or network timeouts. Client 400 and 404 errors are non-retryable. **No money-moving method is exposed, and no implicit retries exist for non-GET operations.**
 
 ### Single corridor detail
 
