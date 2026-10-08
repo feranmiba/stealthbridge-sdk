@@ -1,4 +1,5 @@
-import type {Capabilities,Corridor,Network,NetworkStatus,TransactionObservation,CorridorPage,LedgerCheckpoint,Readiness} from "./types.js";
+import { parseDeploymentManifest } from "./manifest.js";
+import type {Capabilities,Corridor,Network,NetworkStatus,TransactionObservation,CorridorPage,LedgerCheckpoint,Readiness,ContractDiscovery} from "./types.js";
 
 export interface ClientConfig {
  apiBaseUrl:string;
@@ -19,6 +20,19 @@ export class ApiError extends Error {
 }
 function object(value:unknown):value is Record<string,unknown>{
  return value!==null && typeof value==="object" && !Array.isArray(value);
+}
+/** Distinguishes upstream manifest claims from independently proven execution. */
+function contractDiscovery(value:unknown):value is ContractDiscovery{
+ if(!object(value)||value.network!=="testnet" ||
+    value.source!=="stealthbridge-contracts/deployments/testnet/manifest.json" ||
+    value.on_chain_verified!==false || value.payment_execution_enabled!==false)
+   return false;
+ try{
+   const manifest=parseDeploymentManifest(value.manifest);
+   return manifest.status==="not-deployed" && manifest.verified===false &&
+     Object.keys(manifest.contractAddresses).length===0 &&
+     manifest.txHashes.length===0;
+ }catch{return false;}
 }
 function networkStatus(value:unknown):value is NetworkStatus{
  return object(value) && value.network==="testnet" &&
@@ -161,6 +175,10 @@ export class StealthBridgeClient {
    const timer=setTimeout(()=>{cleanup();resolve();},ms);
    signal.addEventListener("abort",abort,{once:true});
   });
+ }
+ /** Read the authoritative *undeployed* contract snapshot, never a claimed payout. */
+ contracts(options?:RequestOptions):Promise<ContractDiscovery>{
+  return this.read("/v1/contracts",contractDiscovery,options);
  }
  /** Last persisted opt-in observer head. 404 means no checkpoint, not a fictional ledger. */
  observerHead(options?:RequestOptions):Promise<LedgerCheckpoint>{

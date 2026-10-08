@@ -67,3 +67,12 @@ export interface Readiness {
  database:"connected"|"unavailable";
  payments:"disabled";
 }
+
+/** Deployed contract discovery is intentionally denied until independent RPC verification. */
+export interface ContractDiscovery {
+ network:"testnet";
+ source:"stealthbridge-contracts/deployments/testnet/manifest.json";
+ manifest:import("./manifest.js").DeploymentManifest;
+ on_chain_verified:false;
+ payment_execution_enabled:false;
+}

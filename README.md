@@ -125,3 +125,7 @@ In particular, \`chain_finalized\` **cannot** advance directly to \`payout_compl
 ## Bounded streaming corridor scans
 
 The SDK now offers `scanCorridors({pageSize:25,maxPages:20,signal})`, an asynchronous iterator over **real** configured records. It limits the number of HTTP requests, supports caller cancellation and bounded GET retry settings, checks UUID cursor progress, ordering and duplicate records, and terminates when the backend returns a null cursor. The default cap is at most 20 requests, not an exhaustive scan guarantee; use `corridorsPage` with explicit cursors for larger catalogs. No data is fabricated, and no transfer or payout operation is performed.
+
+## Canonical cross-repository contract discovery
+
+`client.contracts()` retrieves `GET /v1/contracts` from the Rust backend. The backend embeds the **real**, currently `not-deployed` Testnet manifest from the Soroban contracts repository. An automated backend CI check compares its snapshot with the canonical contracts repo so source drift fails early. The SDK validates schema, network, record emptiness and explicit `on_chain_verified=false` / `payment_execution_enabled=false`. It rejects any premature deployed/verified claim; no contract ID or payment capability is conjured. After an independently verified Soroban deployment, this interface must be extended with actual chain attestation before enabling contract operations. The SDK does not sign or simulate fund movement.
