@@ -44,3 +44,7 @@ CI checks package integrity, types, browser safety, offline fixtures, response v
 Never include wallet secrets, ZK witnesses, KYC data, protected amounts or confidential note keys in public API observations or logs. The SDK exposes no `send`, `sign`, `withdraw`, `mint`, `quote` or `payout` method until the underlying protocol and compliance controls are independently verified and approved.
 
 See [compatibility](../specs/COMPATIBILITY.md), [backend OpenAPI](https://github.com/stealthbridge-labs/stealthbridge-backend/blob/main/api/openapi.yaml), and [SDK roadmap](../ROADMAP.md).
+
+## Bounded client responses and opt-in retries
+
+Every GET has a total configurable timeout, optional AbortSignal, and a 64 KiB **streamed byte limit**. Oversized responses are rejected as upstream errors before the full body is accumulated, and malformed or unexpected response types are not transformed into fictional data. Retries are **off by default**; to explicitly retry only 429/502/503 GET failures, pass \`{retries: 1}\` or \`{retries: 2}\`. A single overall timeout/AbortSignal covers retries and exponential backoff. Client-side financial mutation methods do not exist and will never inherit this retry policy implicitly.

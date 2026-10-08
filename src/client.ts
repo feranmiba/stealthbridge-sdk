@@ -7,7 +7,7 @@ export interface ClientConfig {
  /** Timeout for read-only API calls; defaults to 10s. */
  timeoutMs?:number;
 }
-export interface RequestOptions {signal?:AbortSignal;}
+export interface RequestOptions {signal?:AbortSignal; /** GET-only retries after 429, 502 or 503. Default 0, maximum 2. */ retries?:0|1|2;}
 export class ApiError extends Error {
  constructor(public readonly status:number,public readonly path:string) {
   super("StealthBridge API returned HTTP "+status+" for "+path);this.name="ApiError";
@@ -63,20 +63,64 @@ export class StealthBridgeClient {
   this.timeoutMs=timeout;
  }
  private async read<T>(path:string,guard:(value:unknown)=>value is T,options:RequestOptions={}):Promise<T>{
+  const attempts=options.retries??0;
+  if(!Number.isInteger(attempts)||attempts<0||attempts>2)
+   throw new RangeError("GET retries must be an integer from 0 to 2");
+  // The budget includes all retries, backoff and response streaming.
   const timeout=AbortSignal.timeout(this.timeoutMs);
   const signal=options.signal?AbortSignal.any([options.signal,timeout]):timeout;
-  const response=await this.transport(this.base+path,{
-   method:"GET",headers:{accept:"application/json"},cache:"no-store",signal,
+  for(let attempt=0;;attempt++){
+   signal.throwIfAborted();
+   try{
+    const response=await this.transport(this.base+path,{
+     method:"GET",headers:{accept:"application/json"},cache:"no-store",signal,
+    });
+    if(!response.ok)throw new ApiError(response.status,path);
+    const declared=response.headers.get("content-length");
+    if(declared!==null&&Number(declared)>MAX_JSON_BYTES)throw new ApiError(502,path);
+    const raw=await this.readBoundedBody(response,signal,path);
+    let parsed:unknown;
+    try{parsed=JSON.parse(raw);}catch{throw new ApiError(502,path);}
+    if(!guard(parsed))throw new ApiError(502,path);
+    return parsed;
+   }catch(error){
+    if(signal.aborted)throw signal.reason;
+    // Automatic retry is opt-in and limited to safe, idempotent GET reads.
+    const recoverable=error instanceof ApiError && [429,502,503].includes(error.status);
+    if(!recoverable||attempt>=attempts)throw error;
+    await StealthBridgeClient.backoff(150*(2**attempt),signal);
+   }
+  }
+ }
+ private async readBoundedBody(response:Response,signal:AbortSignal,path:string):Promise<string>{
+  if(!response.body)return "";
+  const reader=response.body.getReader();
+  const decoder=new TextDecoder("utf-8",{fatal:true});
+  let size=0,body="";
+  try{
+   while(true){
+    signal.throwIfAborted();
+    const {done,value}=await reader.read();
+    if(done)break;
+    size+=value.byteLength;
+    if(size>MAX_JSON_BYTES)throw new ApiError(502,path);
+    body+=decoder.decode(value,{stream:true});
+   }
+   return body+decoder.decode();
+  }finally{
+   reader.releaseLock();
+   // Closing stream when over budget avoids reading the remaining XDR/JSON.
+   if(size>MAX_JSON_BYTES)void response.body.cancel().catch(()=>{});
+  }
+ }
+ private static backoff(ms:number,signal:AbortSignal):Promise<void>{
+  return new Promise((resolve,reject)=>{
+   if(signal.aborted){reject(signal.reason);return;}
+   const cleanup=()=>signal.removeEventListener("abort",abort);
+   const abort=()=>{clearTimeout(timer);cleanup();reject(signal.reason);};
+   const timer=setTimeout(()=>{cleanup();resolve();},ms);
+   signal.addEventListener("abort",abort,{once:true});
   });
-  if(!response.ok)throw new ApiError(response.status,path);
-  const declaredLength=Number(response.headers.get("content-length"));
-  if(declaredLength>MAX_JSON_BYTES)throw new ApiError(502,path);
-  const raw=await response.text();
-  if(raw.length>MAX_JSON_BYTES)throw new ApiError(502,path);
-  let parsed:unknown;
-  try{parsed=JSON.parse(raw);}catch{throw new ApiError(502,path);}
-  if(!guard(parsed))throw new ApiError(502,path);
-  return parsed;
  }
  health(options?:RequestOptions):Promise<{service:string;status:string}>{
   return this.read("/health",(v):v is {service:string;status:string}=>

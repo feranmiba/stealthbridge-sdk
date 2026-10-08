@@ -90,3 +90,7 @@ Set `timeoutMs` between 100 and 60000 milliseconds (10 seconds by default) and p
 ## Detailed developer guide
 
 [Read the implementation and integration guide](docs/DEVELOPER-GUIDE.md) for current API boundaries, usage, verification and security requirements.
+
+## Bounded client responses and opt-in retries
+
+Every GET has a total configurable timeout, optional AbortSignal, and a 64 KiB **streamed byte limit**. Oversized responses are rejected as upstream errors before the full body is accumulated, and malformed or unexpected response types are not transformed into fictional data. Retries are **off by default**; to explicitly retry only 429/502/503 GET failures, pass \`{retries: 1}\` or \`{retries: 2}\`. A single overall timeout/AbortSignal covers retries and exponential backoff. Client-side financial mutation methods do not exist and will never inherit this retry policy implicitly.

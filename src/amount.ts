@@ -47,7 +47,7 @@ export class AssetAmount {
   }
   static parse(asset:AssetIdentity, input:string):AssetAmount {
     const verified=assertAsset(asset);
-    if(typeof input!=="string" || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(input))
+    if(typeof input!=="string" || input.length>128 || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(input))
       throw new AmountError("Expected unsigned plain decimal string with no separators");
     if(input.length>170) throw new AmountError("Decimal input too long");
     const [whole,fraction=""]=input.split(".");
