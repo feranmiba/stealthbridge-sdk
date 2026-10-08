@@ -48,3 +48,16 @@ See [compatibility](../specs/COMPATIBILITY.md), [backend OpenAPI](https://github
 ## Bounded client responses and opt-in retries
 
 Every GET has a total configurable timeout, optional AbortSignal, and a 64 KiB **streamed byte limit**. Oversized responses are rejected as upstream errors before the full body is accumulated, and malformed or unexpected response types are not transformed into fictional data. Retries are **off by default**; to explicitly retry only 429/502/503 GET failures, pass \`{retries: 1}\` or \`{retries: 2}\`. A single overall timeout/AbortSignal covers retries and exponential backoff. Client-side financial mutation methods do not exist and will never inherit this retry policy implicitly.
+
+## Bounded corridor discovery
+
+\`client.corridorsPage({limit:25})\` calls the backend's **read-only** keyset endpoint. Use \`page.next_cursor\` as \`after\` for the next request. Page sizes are restricted to 1–100 and both incoming cursors and returned records are validated. An empty page is a genuine empty database result, not an invented corridor. Concurrent operator changes may affect subsequent pages; pagination is not a transactionally frozen snapshot.
+
+\`\`\`ts
+const first = await client.corridorsPage({limit:25});
+if(first.next_cursor){
+  const second = await client.corridorsPage({after:first.next_cursor,limit:25});
+}
+\`\`\`
+
+This method is separate from the backwards-compatible \`corridors()\` listing; it never creates quote, payment or partner relationships.

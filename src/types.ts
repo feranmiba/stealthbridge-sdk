@@ -48,3 +48,6 @@ export interface TransactionObservation {
   latest_ledger: number;
   source: "stellar-rpc";
 }
+
+/** Bounded, read-only operator configuration page. Never implies live liquidity. */
+export interface CorridorPage { items:Corridor[]; next_cursor:string|null; }
