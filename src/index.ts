@@ -1,7 +1,7 @@
 export { StealthBridgeClient, ApiError } from "./client.js";
 export type { ClientConfig, RequestOptions, CorridorPageOptions, CorridorScanOptions } from "./client.js";
 export type {
-  Readiness, ContractDiscovery, CorridorPage, LedgerCheckpoint, Network, PrivacyRail, SettlementState, Capabilities, NetworkStatus, Corridor, SettlementSummary, TransactionObservation,
+  Readiness, ContractDiscovery, PublicSorobanInterface, CorridorPage, LedgerCheckpoint, Network, PrivacyRail, SettlementState, Capabilities, NetworkStatus, Corridor, SettlementSummary, TransactionObservation,
 } from "./types.js";
 export { AssetAmount, AmountError, assertAsset } from "./amount.js";
 export type { AssetIdentity } from "./amount.js";

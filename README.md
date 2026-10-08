@@ -129,3 +129,7 @@ The SDK now offers `scanCorridors({pageSize:25,maxPages:20,signal})`, an asynchr
 ## Canonical cross-repository contract discovery
 
 `client.contracts()` retrieves `GET /v1/contracts` from the Rust backend. The backend embeds the **real**, currently `not-deployed` Testnet manifest from the Soroban contracts repository. An automated backend CI check compares its snapshot with the canonical contracts repo so source drift fails early. The SDK validates schema, network, record emptiness and explicit `on_chain_verified=false` / `payment_execution_enabled=false`. It rejects any premature deployed/verified claim; no contract ID or payment capability is conjured. After an independently verified Soroban deployment, this interface must be extended with actual chain attestation before enabling contract operations. The SDK does not sign or simulate fund movement.
+
+### Source-level registry ABI inventory
+
+`contracts().public_interface` contains the read method names, argument shapes and explicitly separated administrator writes for both current Soroban registry sources. The authoritative snapshot lives at `stealthbridge-contracts/integrations/public-soroban-interface.v1.json`; the backend compares its mirrored copy in CI and serves it to SDK clients. The SDK validates the read names against the pinned source interface and rejects unknown read capabilities. This is a method inventory only: without a real deployed Contract ID and independent chain attestation, no Soroban invocation can run. No wallet seed or private proof is accepted here.

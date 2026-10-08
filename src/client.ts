@@ -1,5 +1,5 @@
 import { parseDeploymentManifest } from "./manifest.js";
-import type {Capabilities,Corridor,Network,NetworkStatus,TransactionObservation,CorridorPage,LedgerCheckpoint,Readiness,ContractDiscovery} from "./types.js";
+import type {Capabilities,Corridor,Network,NetworkStatus,TransactionObservation,CorridorPage,LedgerCheckpoint,Readiness,ContractDiscovery,PublicSorobanInterface} from "./types.js";
 
 export interface ClientConfig {
  apiBaseUrl:string;
@@ -21,11 +21,35 @@ export class ApiError extends Error {
 function object(value:unknown):value is Record<string,unknown>{
  return value!==null && typeof value==="object" && !Array.isArray(value);
 }
+/** Do not interpret a method inventory as proof of an on-chain instance. */
+function sourceInterface(value:unknown):value is PublicSorobanInterface {
+ if(!object(value)||value.schemaVersion!==1||value.network!=="testnet"||
+    value.status!=="source-interface-only"||!object(value.contracts))return false;
+ const expected={
+  "corridor-registry":["get_admin","pending_admin","is_paused","is_enabled"],
+  "policy-registry":["admin","pending_admin","is_paused","get_rule","is_effective"],
+ } as const;
+ for(const [name,methods] of Object.entries(expected)){
+  const row=value.contracts[name];
+  if(!object(row)||!object(row.reads)||!Array.isArray(row.writes)||
+     typeof row.source!=="string")return false;
+  if(Object.keys(row.reads).sort().join(",")!==[...methods].sort().join(","))
+   return false;
+  for(const method of methods){
+   const item=row.reads[method];
+   if(!object(item)||!Array.isArray(item.args)||
+      !item.args.every((arg:unknown)=>typeof arg==="string")||
+      typeof item.returns!=="string")return false;
+  }
+ }
+ return true;
+}
 /** Distinguishes upstream manifest claims from independently proven execution. */
 function contractDiscovery(value:unknown):value is ContractDiscovery{
  if(!object(value)||value.network!=="testnet" ||
     value.source!=="stealthbridge-contracts/deployments/testnet/manifest.json" ||
-    value.on_chain_verified!==false || value.payment_execution_enabled!==false)
+    value.on_chain_verified!==false || value.payment_execution_enabled!==false ||
+    !sourceInterface(value.public_interface))
    return false;
  try{
    const manifest=parseDeploymentManifest(value.manifest);

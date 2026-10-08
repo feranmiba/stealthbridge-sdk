@@ -73,6 +73,20 @@ export interface ContractDiscovery {
  network:"testnet";
  source:"stealthbridge-contracts/deployments/testnet/manifest.json";
  manifest:import("./manifest.js").DeploymentManifest;
+ public_interface:PublicSorobanInterface;
  on_chain_verified:false;
  payment_execution_enabled:false;
+}
+
+/** Source-level Soroban reads; not a wallet/signed transaction adapter. */
+export interface PublicSorobanInterface {
+ schemaVersion:1;
+ network:"testnet";
+ status:"source-interface-only";
+ disclaimer:string;
+ contracts:Record<string,{
+  source:string;
+  reads:Record<string,{args:string[];returns:string}>;
+  writes:string[];
+ }>;
 }
