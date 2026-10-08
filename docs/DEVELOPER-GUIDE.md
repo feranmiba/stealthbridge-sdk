@@ -79,3 +79,7 @@ Corridor responses now reject malformed UUIDs, same-country pairs, unsupported p
 ## Service dependency readiness
 
 \`client.readiness()\` reads the backend's \`GET /ready\` route, and validates the relationship between \`status\`, \`stellar_rpc\`, \`database\`, and an explicitly **disabled payments** capability. A fully connected process can report \`ready\` for its observation dependencies while **payments remain disabled**. Absent/unavailable dependencies cause the backend's HTTP 503 and are not rewritten to success by the SDK.
+
+## Bounded streaming corridor scans
+
+The SDK now offers `scanCorridors({pageSize:25,maxPages:20,signal})`, an asynchronous iterator over **real** configured records. It limits the number of HTTP requests, supports caller cancellation and bounded GET retry settings, checks UUID cursor progress, ordering and duplicate records, and terminates when the backend returns a null cursor. The default cap is at most 20 requests, not an exhaustive scan guarantee; use `corridorsPage` with explicit cursors for larger catalogs. No data is fabricated, and no transfer or payout operation is performed.

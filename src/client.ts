@@ -9,6 +9,9 @@ export interface ClientConfig {
 }
 export interface RequestOptions {signal?:AbortSignal; /** GET-only retries after 429, 502 or 503. Default 0, maximum 2. */ retries?:0|1|2;}
 export interface CorridorPageOptions extends RequestOptions { after?:string; limit?:number; }
+/** Hard-capped iteration: protects UI services from unbounded catalog scans. */
+export interface CorridorScanOptions extends RequestOptions { pageSize?:number; maxPages?:number; }
+
 export class ApiError extends Error {
  constructor(public readonly status:number,public readonly path:string) {
   super("StealthBridge API returned HTTP "+status+" for "+path);this.name="ApiError";
@@ -179,7 +182,44 @@ export class StealthBridgeClient {
   return this.read("/v1/corridors/page?"+params.toString(),(v):v is CorridorPage=>
    object(v)&&Array.isArray(v.items)&&v.items.length<=limit&&v.items.every(corridor)&&
    (v.next_cursor===null||(typeof v.next_cursor==="string"&&
-    /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(v.next_cursor)) ), options);
+    /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(v.next_cursor))) &&
+   (v.next_cursor===null||(v.items.length>0 &&
+      v.next_cursor.toLowerCase()===v.items[v.items.length-1].id.toLowerCase())) &&
+   v.items.every((item,index)=>index===0 ||
+      v.items[index-1].id.toLowerCase()<item.id.toLowerCase()) &&
+   (!after || v.items.every(item=>item.id.toLowerCase()>after.toLowerCase())),options);
+ }
+
+ /**
+  * Iterate verified, actual operator-configured corridor pages, with a hard
+  * upper bound and a replay/loop guard. The caller owns cancellation.
+  *
+  * This does NOT establish a live payment provider or available liquidity.
+  */
+ async *scanCorridors(options:CorridorScanOptions={}):AsyncGenerator<Corridor,void,void>{
+  const pageSize=options.pageSize??25,maxPages=options.maxPages??20;
+  if(!Number.isSafeInteger(maxPages)||maxPages<1||maxPages>100)
+   throw new RangeError("maxPages must be between 1 and 100");
+  if(!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)
+   throw new RangeError("pageSize must be between 1 and 100");
+  let after:string|undefined;
+  const visited=new Set<string>();
+  for(let pageNumber=0;pageNumber<maxPages;pageNumber++){
+   options.signal?.throwIfAborted();
+   const page=await this.corridorsPage({
+    after,limit:pageSize,signal:options.signal,retries:options.retries,
+   });
+   for(const item of page.items){
+    if(visited.has(item.id))throw new ApiError(502,"/v1/corridors/page");
+    visited.add(item.id);
+    yield item;
+   }
+   if(page.next_cursor===null)return;
+   if(page.next_cursor===after)throw new ApiError(502,"/v1/corridors/page");
+   after=page.next_cursor;
+  }
+  // A finite page cap is intentional; consumers can use explicit cursors
+  // for larger catalogs rather than silently fetching forever.
  }
  /** Inspect one enabled, operator-configured corridor from real database state. */
  corridor(id:string,options?:RequestOptions):Promise<Corridor>{
