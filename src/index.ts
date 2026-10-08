@@ -7,3 +7,4 @@ export { AssetAmount, AmountError, assertAsset } from "./amount.js";
 export type { AssetIdentity } from "./amount.js";
 export { ManifestError, parseDeploymentManifest, getVerifiedContract } from "./manifest.js";
 export type { DeploymentManifest } from "./manifest.js";
+export { allowedSettlementTransitions, SettlementTransitionError, isSettlementState, canTransitionSettlement, assertSettlementTransition, isTerminalSettlementState } from "./settlement.js";

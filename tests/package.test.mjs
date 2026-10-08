@@ -21,6 +21,8 @@ const expectedPackageFiles = [
   "dist/index.js",
   "dist/manifest.d.ts",
   "dist/manifest.js",
+  "dist/settlement.d.ts",
+  "dist/settlement.js",
   "dist/types.d.ts",
   "dist/types.js",
   "package.json"
