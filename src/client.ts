@@ -214,9 +214,11 @@ export class StealthBridgeClient {
   const visited=new Set<string>();
   for(let pageNumber=0;pageNumber<maxPages;pageNumber++){
    options.signal?.throwIfAborted();
-   const page=await this.corridorsPage({
-    after,limit:pageSize,signal:options.signal,retries:options.retries,
-   });
+   const pageOptions:CorridorPageOptions={limit:pageSize};
+   if(after!==undefined)pageOptions.after=after;
+   if(options.signal!==undefined)pageOptions.signal=options.signal;
+   if(options.retries!==undefined)pageOptions.retries=options.retries;
+   const page=await this.corridorsPage(pageOptions);
    for(const item of page.items){
     if(visited.has(item.id))throw new ApiError(502,"/v1/corridors/page");
     visited.add(item.id);
