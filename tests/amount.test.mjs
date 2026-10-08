@@ -32,3 +32,20 @@ test("rejects unverified scale or identity",()=>{
  assert.throws(()=>AssetAmount.parse({...asset,decimals:1.5},"1"),/decimals/);
  assert.throws(()=>AssetAmount.parse({...asset,identifier:""},"1"),/identifier/);
 });
+
+const classic={network:'testnet',kind:'stellar-classic',identifier:'native',decimals:7};
+test('classic and Soroban enforce their separate integer limits',()=>{
+ assert.equal(new AssetAmount(classic,(1n<<63n)-1n).minorUnits,(1n<<63n)-1n);
+ assert.throws(()=>new AssetAmount(classic,1n<<63n),/range/);
+ assert.equal(new AssetAmount(asset,(1n<<127n)-1n).minorUnits,(1n<<127n)-1n);
+ assert.throws(()=>new AssetAmount(asset,1n<<127n),/range/);
+ assert.throws(()=>AssetAmount.parse({...classic,decimals:6},'1'),/precision/);
+});
+test('exact arithmetic detects overflow and formatting round trips',()=>{
+ const max=new AssetAmount(classic,(1n<<63n)-1n);
+ assert.throws(()=>max.add(new AssetAmount(classic,1n)),/range/);
+ for(let i=0n;i<1000n;i++){
+  const amount=new AssetAmount(classic,i*i*12345n);
+  assert.equal(AssetAmount.parse(classic,amount.format()).minorUnits,amount.minorUnits);
+ }
+});

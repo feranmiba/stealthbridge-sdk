@@ -48,3 +48,14 @@ export interface TransactionObservation {
   latest_ledger: number;
   source: "stellar-rpc";
 }
+
+/** Bounded, read-only operator configuration page. Never implies live liquidity. */
+export interface CorridorPage { items:Corridor[]; next_cursor:string|null; }
+
+/** Last persisted Testnet observer checkpoint. May be stale, never a payout receipt. */
+export interface LedgerCheckpoint {
+  ledger_sequence:number;
+  ledger_hash:string;
+  ledger_closed_at_unix:string;
+  source:"stellar-rpc";
+}
